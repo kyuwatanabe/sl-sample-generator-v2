@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -260,8 +261,51 @@ def search_database(position, industry, department):
     else:
         return []
 
-def generate_job_descriptions(position, industry, department, reference_samples=None, sample_count=5):
-    """ChatGPTで職務内容を生成"""
+def generate_job_descriptions(position, industry, department, area, reference_samples=None, sample_count=5):
+    """ChatGPTで職務内容を生成（文字数チェック付き）"""
+
+    MIN_CHARS = 50  # 最低文字数
+    TARGET_COUNT = 10  # 目標件数
+    MAX_RETRIES = 5  # 最大リトライ回数（増加）
+
+    all_results = []
+    all_generated = []  # フィルタ前の全結果（フォールバック用）
+    retry_count = 0
+
+    while len(all_results) < TARGET_COUNT and retry_count < MAX_RETRIES:
+        needed = TARGET_COUNT - len(all_results)
+        generated = _generate_job_descriptions_raw(position, industry, department, area, reference_samples, sample_count, needed)
+
+        print(f"[DEBUG] リトライ{retry_count+1}: 生成{len(generated)}件", flush=True)
+        # 文字数チェック：50文字以上のもののみ採用
+        for item in generated:
+            char_count = len(item)
+            all_generated.append((char_count, item))  # フォールバック用に保存
+            if char_count >= MIN_CHARS:
+                all_results.append(item)
+                print(f"[DEBUG] 採用: {char_count}文字", flush=True)
+            else:
+                print(f"[DEBUG] 除外: {char_count}文字 - {item[:30]}...", flush=True)
+            if len(all_results) >= TARGET_COUNT:
+                break
+
+        retry_count += 1
+
+    # 50文字以上が不足している場合、長い順にフォールバック
+    if len(all_results) < TARGET_COUNT:
+        all_generated.sort(key=lambda x: x[0], reverse=True)  # 長い順
+        for char_count, item in all_generated:
+            if item not in all_results:
+                all_results.append(item)
+                print(f"[DEBUG] フォールバック採用: {char_count}文字", flush=True)
+                if len(all_results) >= TARGET_COUNT:
+                    break
+
+    print(f"[DEBUG] 最終結果: {len(all_results)}件", flush=True)
+    return all_results[:TARGET_COUNT]
+
+def _generate_job_descriptions_raw(position, industry, department, area, reference_samples=None, sample_count=5, count=10):
+    """ChatGPTで職務内容を生成（内部関数）"""
 
     # 参考サンプルをプロンプトに含める
     reference_text = ""
@@ -270,12 +314,17 @@ def generate_job_descriptions(position, industry, department, reference_samples=
         for i, sample in enumerate(reference_samples[:sample_count], 1):
             reference_text += f"{i}. {sample}\n"
 
-    prompt = f"""以下の条件で、米国ビザ申請書に記載する職務内容を生成してください。
+    # 担当領域の条件文を作成
+    area_condition = f"- 担当領域:{area}" if area else ""
+    area_analysis = f'- 「{area}」という担当領域で特に重要な業務は何か' if area else ""
+
+    prompt = f"""以下の条件で、米国ビザ申請書に記載する職務内容を{count}件生成してください。
 
 【条件】
 - ポジション:{position}
 - 業界:{industry}
 - 部門:{department}
+{area_condition}
 - 勤務地:アメリカ
 
 【ステップ1: 特徴の分析】
@@ -283,6 +332,7 @@ def generate_job_descriptions(position, industry, department, reference_samples=
 - 「{industry}」業界の特徴は何か（市場環境、規制、競争要因など）
 - 「{department}」部門で重要な業務領域は何か
 - 「{position}」として期待される役割・責任は何か
+{area_analysis}
 - アメリカで行う業務として適切な内容は何か
 
 【ステップ2: 職務内容の生成】
@@ -295,16 +345,24 @@ def generate_job_descriptions(position, industry, department, reference_samples=
 - 生成する内容は、必ず指定された「{industry}」業界の「{department}」部門の業務に限定してください。
 - 業界・部門・ポジションの特徴を反映した具体的な内容にしてください。
 
+【文字数の厳守（最重要）】
+- 各項目は「最低50文字以上」で記述すること。50文字未満の出力は絶対に不可。
+- 目標は60〜80文字。短い文は具体的な情報を追加して必ず50文字以上にすること。
+- 例：「営業戦略を立案」(8文字)→NG、「北米市場における新規顧客開拓に向けた営業戦略の立案と、四半期ごとの売上目標達成に向けたアクションプランの策定」(65文字)→OK
+
+【具体性の確保】
+- 必ず含めるべき要素：対象（製品/市場/顧客層）、手法・プロセス、目的・成果
+- 業界特有の専門用語、規制名、システム名などを積極的に使用すること
+
 【文体の制約】
 - 必ず日本語で出力すること（英語や中国語など他の言語は使用しないこと）
-- 各文は1~2文以内で簡潔に、業務内容を具体的に記述すること
 - 文体は「です・ます調」ではなく、体言止めや「~する」などの常体で統一すること
 - 文末表現は「~を行う」「~に関与」「~を担当」「~の実施」「~を図る」「~を推進」などを使用すること
-- 箇条書きで10件を番号付きリストで出力すること（分析結果は出力せず、職務内容のみ出力）
+- 箇条書きで{count}件を番号付きリストで出力すること（分析結果は出力せず、職務内容のみ出力）
 """
 
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-turbo",
         messages=[
             {"role": "system", "content": "あなたは米国ビザ申請書に適した職務内容を日本語で生成するアシスタントです。"},
             {"role": "user", "content": prompt}
@@ -324,36 +382,116 @@ def generate_job_descriptions(position, industry, department, reference_samples=
         if cleaned:
             job_list.append(cleaned)
 
-    return job_list[:10]
+    return job_list
+
+def filter_by_length(items, min_chars=50):
+    """50文字以上のものだけを返す"""
+    return [item for item in items if len(item) >= min_chars]
+
+def evaluate_patterns(position, industry, department, area, similar_results, random_results):
+    """2つのパターンをAIで評価"""
+
+    area_text = f"、担当領域「{area}」" if area else ""
+
+    prompt = f"""以下の2つのパターンで生成された職務内容を評価してください。
+
+【入力条件】
+- ポジション: {position}
+- 業界: {industry}
+- 部門: {department}
+{f'- 担当領域: {area}' if area else ''}
+
+【パターンA: 似た業界・部門を参照】
+{chr(10).join([f'{i+1}. {item}' for i, item in enumerate(similar_results)])}
+
+【パターンB: ランダムサンプルを参照】
+{chr(10).join([f'{i+1}. {item}' for i, item in enumerate(random_results)])}
+
+【評価基準】
+1. 業界特性の反映: {industry}業界特有の業務内容が含まれているか
+2. 部門特性の反映: {department}部門の典型的な業務が含まれているか
+3. ポジション特性の反映: {position}としての役割・責任が適切か
+{f'4. 担当領域の反映: {area}に関連する業務が含まれているか' if area else ''}
+5. 具体性: 抽象的でなく、具体的な業務内容になっているか
+6. 多様性: 似たような内容の繰り返しがなく、多様な業務が含まれているか
+
+【出力形式】
+以下のJSON形式で出力してください（他の文章は不要）:
+{{
+  "winner": "A" または "B" または "同等",
+  "score_a": 1-10の整数,
+  "score_b": 1-10の整数,
+  "reason": "選んだ理由を1-2文で簡潔に"
+}}"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[
+                {"role": "system", "content": "あなたは職務内容の品質を評価する専門家です。JSON形式で回答してください。"},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+
+        import json
+        result = json.loads(response.choices[0].message.content)
+        print(f"[EVAL] winner={result.get('winner')}, A={result.get('score_a')}, B={result.get('score_b')}", flush=True)
+        return result
+    except Exception as e:
+        print(f"[EVAL] エラー: {e}", flush=True)
+        return {
+            "winner": "評価エラー",
+            "score_a": 0,
+            "score_b": 0,
+            "reason": str(e)
+        }
 
 @app.route('/api/compare', methods=['POST'])
 def compare():
-    """3パターン比較用エンドポイント"""
+    """3パターン比較用エンドポイント（並列処理版）"""
     initialize()
+    print("[COMPARE] v3 - 並列処理 + GPT-4-turbo", flush=True)
 
     data = request.json
     position = data.get('position', '')
     industry = data.get('industry', '')
     department = data.get('department', '')
+    area = data.get('area', '')
 
     results = {}
+    MIN_CHARS = 50
+
+    def generate_similar():
+        samples = get_similar_samples(industry, department, 10)
+        # generate_job_descriptions内でフィルタ+フォールバック済み
+        results = generate_job_descriptions(position, industry, department, area, samples, 10)
+        print(f"[COMPARE] similar: {len(results)}件", flush=True)
+        return {
+            'label': '似た業界・部門 × 10件',
+            'samples_used': samples,
+            'generated': results
+        }
+
+    def generate_random():
+        samples = get_random_samples(10)
+        # generate_job_descriptions内でフィルタ+フォールバック済み
+        results = generate_job_descriptions(position, industry, department, area, samples, 10)
+        print(f"[COMPARE] random: {len(results)}件", flush=True)
+        return {
+            'label': 'ランダム × 10件',
+            'samples_used': samples,
+            'generated': results
+        }
 
     try:
-        # パターン1: 似た業界・部門 × 10件
-        samples_similar = get_similar_samples(industry, department, 10)
-        results['similar'] = {
-            'label': '似た業界・部門 × 10件',
-            'samples_used': samples_similar,
-            'generated': generate_job_descriptions(position, industry, department, samples_similar, 10)
-        }
+        # 並列処理でsimilarとrandomを同時生成
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_similar = executor.submit(generate_similar)
+            future_random = executor.submit(generate_random)
 
-        # パターン2: ランダム × 10件
-        samples_random = get_random_samples(10)
-        results['random'] = {
-            'label': 'ランダム × 10件',
-            'samples_used': samples_random,
-            'generated': generate_job_descriptions(position, industry, department, samples_random, 10)
-        }
+            results['similar'] = future_similar.result()
+            results['random'] = future_random.result()
 
         # パターン3: データベースから直接出力（AI生成なし）
         db_results = search_database(position, industry, department)
@@ -362,6 +500,14 @@ def compare():
             'samples_used': [],
             'generated': db_results
         }
+
+        # AI評価を実行
+        evaluation = evaluate_patterns(
+            position, industry, department, area,
+            results['similar']['generated'],
+            results['random']['generated']
+        )
+        results['evaluation'] = evaluation
 
         return jsonify({
             'success': True,

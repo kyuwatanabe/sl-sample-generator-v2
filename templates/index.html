@@ -18,23 +18,29 @@
             <div class="card-body">
                 <form id="searchForm">
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="industry" class="form-label">業界</label>
                             <input type="text" class="form-control" id="industry"
                                    placeholder="例: 製薬、IT、玩具" value="自動車">
                             <small class="text-muted">業種や産業を入力</small>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="department" class="form-label">部門</label>
                             <input type="text" class="form-control" id="department"
                                    placeholder="例: 営業、経営企画、法務" value="製造">
                             <small class="text-muted">所属部門を入力</small>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="position" class="form-label">ポジション</label>
                             <input type="text" class="form-control" id="position"
                                    placeholder="例: 部長、マネージャー、CFO" value="マネージャー">
                             <small class="text-muted">役職や職位を入力</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="area" class="form-label">担当領域</label>
+                            <input type="text" class="form-control" id="area"
+                                   placeholder="例: 北米市場、新規顧客、品質管理">
+                            <small class="text-muted">任意：エリア、顧客、業務範囲など</small>
                         </div>
                     </div>
                     <div class="text-center mt-4">
@@ -68,6 +74,35 @@
                 </div>
                 <div class="card-body">
                     <div class="list-group" id="resultList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI評価結果 -->
+        <div id="evaluationResult" class="mb-4" style="display: none;">
+            <div class="card shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <strong>🤖 AI評価結果</strong>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-4 text-center">
+                            <h5>似た業界・部門</h5>
+                            <div class="display-4" id="scoreA">-</div>
+                            <small class="text-muted">/10点</small>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="mb-2"><strong>勝者</strong></div>
+                            <div class="display-6" id="winner">-</div>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h5>ランダム</h5>
+                            <div class="display-4" id="scoreB">-</div>
+                            <small class="text-muted">/10点</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <p class="mb-0" id="evalReason"></p>
                 </div>
             </div>
         </div>

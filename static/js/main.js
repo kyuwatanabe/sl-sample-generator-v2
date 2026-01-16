@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const loading = document.getElementById('loading');
     const loadingText = document.querySelector('#loading p');
     const compareResults = document.getElementById('compareResults');
+    const evaluationResult = document.getElementById('evaluationResult');
     const error = document.getElementById('error');
 
     searchForm.addEventListener('submit', async function(e) {
@@ -11,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const position = document.getElementById('position').value;
         const industry = document.getElementById('industry').value;
         const department = document.getElementById('department').value;
+        const area = document.getElementById('area').value;
 
         // 入力チェック
         if (!position && !industry && !department) {
@@ -22,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingText.textContent = '3パターン生成中です。30秒程度かかります...';
         loading.style.display = 'block';
         compareResults.style.display = 'none';
+        evaluationResult.style.display = 'none';
         error.style.display = 'none';
 
         try {
@@ -33,7 +36,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     position: position,
                     industry: industry,
-                    department: department
+                    department: department,
+                    area: area
                 })
             });
 
@@ -90,6 +94,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 div.innerHTML = `<strong>${index + 1}.</strong> ${item}`;
                 dbGeneratedEl.appendChild(div);
             });
+        }
+
+        // AI評価結果を表示
+        if (results.evaluation) {
+            const eval_ = results.evaluation;
+            document.getElementById('scoreA').textContent = eval_.score_a || '-';
+            document.getElementById('scoreB').textContent = eval_.score_b || '-';
+
+            let winnerText = eval_.winner;
+            if (winnerText === 'A') {
+                winnerText = '似た業界・部門';
+            } else if (winnerText === 'B') {
+                winnerText = 'ランダム';
+            }
+            document.getElementById('winner').textContent = winnerText || '-';
+            document.getElementById('evalReason').textContent = eval_.reason || '';
+            evaluationResult.style.display = 'block';
         }
 
         compareResults.style.display = 'block';
