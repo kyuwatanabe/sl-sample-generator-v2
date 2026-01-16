@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLサンプル生成システム</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container-fluid mt-5 px-4">
+        <div class="header-section text-center mb-5">
+            <h1 class="display-4"><strong>SL</strong>サンプル生成システム</h1>
+        </div>
+
+        <!-- 検索フォーム -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form id="searchForm">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="industry" class="form-label">業界</label>
+                            <input type="text" class="form-control" id="industry"
+                                   placeholder="例: 製薬、IT、玩具" value="自動車">
+                            <small class="text-muted">業種や産業を入力</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="department" class="form-label">部門</label>
+                            <input type="text" class="form-control" id="department"
+                                   placeholder="例: 営業、経営企画、法務" value="製造">
+                            <small class="text-muted">所属部門を入力</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="position" class="form-label">ポジション</label>
+                            <input type="text" class="form-control" id="position"
+                                   placeholder="例: 部長、マネージャー、CFO" value="マネージャー">
+                            <small class="text-muted">役職や職位を入力</small>
+                        </div>
+                    </div>
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg px-5" id="compareBtn">
+                            生成する
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ローディング表示 -->
+        <div id="loading" class="text-center mb-4" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">生成中...</span>
+            </div>
+            <p class="mt-2">生成中です。数秒かかることがあります...</p>
+        </div>
+
+        <!-- 結果表示 -->
+        <div id="results" style="display: none;">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="h5 mb-0">
+                        <span id="resultBadge"></span>
+                        <span id="resultTitle"></span>
+                    </h3>
+                    <button class="btn btn-sm btn-outline-secondary" id="copyAllBtn">
+                        📋 すべてコピー
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="list-group" id="resultList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3パターン比較結果表示 -->
+        <div id="compareResults" style="display: none;">
+            <h3 class="mb-3">3パターン比較結果</h3>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-primary text-white">
+                            <strong>似た業界・部門 × 10件</strong>
+                        </div>
+                        <div class="card-body">
+                            <details class="mb-2">
+                                <summary class="text-muted small">参照したサンプル</summary>
+                                <ul class="small mt-1" id="samples_similar"></ul>
+                            </details>
+                            <hr>
+                            <div id="generated_similar"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-success text-white">
+                            <strong>ランダム × 10件</strong>
+                        </div>
+                        <div class="card-body">
+                            <details class="mb-2">
+                                <summary class="text-muted small">参照したサンプル</summary>
+                                <ul class="small mt-1" id="samples_random"></ul>
+                            </details>
+                            <hr>
+                            <div id="generated_random"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-secondary text-white">
+                            <strong>データベース直接</strong>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-2">AI生成なし（既存サンプルをそのまま表示）</p>
+                            <hr>
+                            <div id="generated_database"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- エラー表示 -->
+        <div id="error" class="alert alert-danger" style="display: none;" role="alert">
+            <strong>エラー:</strong> <span id="errorMessage"></span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
